@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using SchoolAdmissionSystem.Api.Filters;
 using SchoolAdmissionSystem.Api.Models.Dtos;
@@ -11,16 +10,13 @@ namespace SchoolAdmissionSystem.Api.Controllers;
 [Produces("application/json")]
 public class ClassesController : ControllerBase
 {
-    private static readonly Regex StudentIdRegex = new(@"^\d{17}$", RegexOptions.Compiled);
     private readonly IClassService _classService;
     private readonly IHoldService _holdService;
-    private readonly ILogger<ClassesController> _logger;
 
-    public ClassesController(IClassService classService, IHoldService holdService, ILogger<ClassesController> logger)
+    public ClassesController(IClassService classService, IHoldService holdService)
     {
         _classService = classService;
         _holdService = holdService;
-        _logger = logger;
     }
 
     /// <summary>
@@ -32,30 +28,8 @@ public class ClassesController : ControllerBase
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Class([FromBody] CreateClassRequest request, CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = string.Join("; ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
-            });
-        }
-
-        try
-        {
-            var result = await _classService.CreateClassAsync(request, ct);
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = ex.Message
-            });
-        }
+        var result = await _classService.CreateClassAsync(request, ct);
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     /// <summary>
@@ -68,22 +42,12 @@ public class ClassesController : ControllerBase
     {
         if (page.HasValue && page.Value <= 0)
         {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = "Page must be greater than zero."
-            });
+            throw new ArgumentException("Page must be greater than zero.", nameof(page));
         }
 
         if (pageSize.HasValue && pageSize.Value <= 0)
         {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = "Page size must be greater than zero."
-            });
+            throw new ArgumentException("Page size must be greater than zero.", nameof(pageSize));
         }
 
         var classes = await _classService.GetClassesAsync(page, pageSize, ct);
@@ -101,23 +65,13 @@ public class ClassesController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(classId))
         {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = "Class ID cannot be empty."
-            });
+            throw new ArgumentException("Class ID cannot be empty.", nameof(classId));
         }
 
         var classItem = await _classService.GetClassByIdAsync(classId.Trim(), ct);
         if (classItem == null)
         {
-            return NotFound(new ErrorResponse
-            {
-                Status = StatusCodes.Status404NotFound,
-                Error = "Not Found",
-                Message = $"Class with id '{classId}' does not exist."
-            });
+            throw new KeyNotFoundException($"Class with id '{classId}' does not exist.");
         }
 
         return Ok(classItem);
@@ -136,49 +90,11 @@ public class ClassesController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(classId))
         {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = "Class ID cannot be empty."
-            });
+            throw new ArgumentException("Class ID cannot be empty.", nameof(classId));
         }
 
-        var studentIdObj = HttpContext.Items[RequireStudentIdAttribute.HeaderName];
-        var studentId = studentIdObj as string;
-
-        if (string.IsNullOrWhiteSpace(studentId) || !StudentIdRegex.IsMatch(studentId.Trim()))
-        {
-            return BadRequest(new ErrorResponse
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Error = "Bad Request",
-                Message = "Student ID must be a 17-digit birth registration number."
-            });
-        }
-
-        try
-        {
-            var hold = await _holdService.CreateHoldAsync(classId.Trim(), studentId.Trim(), ct);
-            return StatusCode(StatusCodes.Status201Created, hold);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new ErrorResponse
-            {
-                Status = StatusCodes.Status404NotFound,
-                Error = "Not Found",
-                Message = ex.Message
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ErrorResponse
-            {
-                Status = StatusCodes.Status409Conflict,
-                Error = "Conflict",
-                Message = ex.Message
-            });
-        }
+        var studentId = (string)HttpContext.Items[RequireStudentIdAttribute.HeaderName]!;
+        var hold = await _holdService.CreateHoldAsync(classId.Trim(), studentId.Trim(), ct);
+        return StatusCode(StatusCodes.Status201Created, hold);
     }
 }
