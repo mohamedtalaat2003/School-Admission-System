@@ -24,11 +24,12 @@ public class HoldService : IHoldService
     public async Task<HoldResponse> CreateHoldAsync(string classId, string studentId, CancellationToken ct = default)
     {
         var holdDurationSeconds = _configuration.GetValue("HOLD_DURATION_SECONDS", 600);
-        const int maxRetries = 3;
+        var maxRetries = _configuration.GetValue("MAX_CONCURRENCY_RETRIES", 20);
 
         for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            string? currentHoldId = null;
             try
             {
                 var now = DateTimeOffset.UtcNow;
@@ -61,6 +62,7 @@ public class HoldService : IHoldService
                 }
 
                 var holdId = $"h_{Guid.NewGuid():N}"[..10];
+                currentHoldId = holdId;
                 var expiresAt = now.AddSeconds(holdDurationSeconds);
 
                 var newHold = new Hold
@@ -91,7 +93,23 @@ public class HoldService : IHoldService
             }
             catch (DbUpdateConcurrencyException)
             {
-                await transaction.RollbackAsync(ct);
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync(ct);
+                }
+
+                // In-memory provider lacks transaction rollback support; cleanly purge the uncommitted hold
+                if (_context.Database.ProviderName?.Contains("InMemory") == true && currentHoldId != null)
+                {
+                    _context.ChangeTracker.Clear();
+                    var orphanHold = await _context.Holds.FirstOrDefaultAsync(h => h.Id == currentHoldId, ct);
+                    if (orphanHold != null)
+                    {
+                        _context.Holds.Remove(orphanHold);
+                        await _context.SaveChangesAsync(ct);
+                    }
+                }
+
                 _context.ChangeTracker.Clear();
 
                 if (attempt == maxRetries)
@@ -100,7 +118,8 @@ public class HoldService : IHoldService
                     throw new ConflictException("No seats available for this class due to concurrent reservations.");
                 }
 
-                await Task.Delay(15 * attempt, ct);
+                var delayMs = Random.Shared.Next(10, 30) * attempt;
+                await Task.Delay(delayMs, ct);
             }
             catch (Exception ex) when (ex is not ConflictException and not KeyNotFoundException)
             {
