@@ -1,0 +1,26 @@
+# Agent & Assignment Specific Exclusions
+AGENT.md
+*.pdf
+
+# Build and IDE files
+bin/
+obj/
+node_modules/
+dist/
+build/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test artifacts
+TestResults/
+coverage/
+
+# OS and Environment
+.DS_Store
+Thumbs.db
+.env
+.env.local
