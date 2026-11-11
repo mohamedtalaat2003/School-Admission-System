@@ -10,8 +10,8 @@ public class AutomaticHoldExpirationTests
     [Fact]
     public async Task HoldAutomaticallyExpires_SeatBecomesAvailable_WithZeroApiCalls()
     {
-        // 1. Configure short hold duration (2 seconds)
-        await using var factory = new CustomWebApplicationFactory(holdDurationSeconds: 2);
+        // 1. Configure short hold duration (4 seconds)
+        await using var factory = new CustomWebApplicationFactory(holdDurationSeconds: 4);
         var client = factory.CreateClient();
 
         // 2. Create class with 1 seat
@@ -40,8 +40,8 @@ public class AutomaticHoldExpirationTests
         Assert.Equal(0, status1.AvailableSeats);
         Assert.Equal(1, status1.HeldSeats);
 
-        // 5. Wait 2.5 seconds (past the 2-second hold duration)
-        await Task.Delay(2500);
+        // 5. Wait 4.5 seconds (past the 4-second hold duration)
+        await Task.Delay(4500);
 
         // 6. Zero API call verification: query GET /classes/{id} without any prior release or cleanup call
         var classRes2 = await client.GetAsync($"/classes/{classId}");
