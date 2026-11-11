@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using SchoolAdmissionSystem.Api.Data;
+using SchoolAdmissionSystem.Api.Exceptions;
 using SchoolAdmissionSystem.Api.Models.Dtos;
 using SchoolAdmissionSystem.Api.Models.Entities;
 using SchoolAdmissionSystem.Api.Models.Enums;
@@ -46,7 +47,7 @@ public class HoldService : IHoldService
 
                 if (hasActiveOrConfirmed)
                 {
-                    throw new InvalidOperationException("Student already has an active application or confirmed admission for this class.");
+                    throw new ConflictException("Student already has an active application or confirmed admission for this class.");
                 }
 
                 // Capacity check
@@ -56,7 +57,7 @@ public class HoldService : IHoldService
 
                 if (activeCount >= classEntity.TotalSeats)
                 {
-                    throw new InvalidOperationException("No seats available for this class.");
+                    throw new ConflictException("No seats available for this class.");
                 }
 
                 var holdId = $"h_{Guid.NewGuid():N}"[..10];
@@ -96,12 +97,12 @@ public class HoldService : IHoldService
                 if (attempt == maxRetries)
                 {
                     _logger.LogWarning("Seat reservation exhausted retries due to concurrency for class {ClassId}", classId);
-                    throw new InvalidOperationException("No seats available for this class due to concurrent reservations.");
+                    throw new ConflictException("No seats available for this class due to concurrent reservations.");
                 }
 
                 await Task.Delay(15 * attempt, ct);
             }
-            catch
+            catch (Exception ex) when (ex is not ConflictException and not KeyNotFoundException)
             {
                 await transaction.RollbackAsync(ct);
                 _context.ChangeTracker.Clear();
@@ -109,7 +110,7 @@ public class HoldService : IHoldService
             }
         }
 
-        throw new InvalidOperationException("No seats available for this class.");
+        throw new ConflictException("No seats available for this class.");
     }
 
     public async Task<HoldStatusResponse?> GetHoldByIdAsync(string holdId, CancellationToken ct = default)
