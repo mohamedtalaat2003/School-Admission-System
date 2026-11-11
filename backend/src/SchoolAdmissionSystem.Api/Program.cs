@@ -7,11 +7,14 @@ using SchoolAdmissionSystem.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database Configuration (Configurable via Environment Variable)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5432;Database=SchoolAdmissionDb;Username=postgres;Password=postgres";
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Host=localhost;Port=5432;Database=SchoolAdmissionDb;Username=postgres;Password=postgres";
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(connectionString));
+}
 
 // 2. Dependency Injection Services (SOLID Principles)
 builder.Services.AddScoped<IClassService, ClassService>();
