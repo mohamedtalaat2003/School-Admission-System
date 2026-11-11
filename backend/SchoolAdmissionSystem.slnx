@@ -3,6 +3,7 @@
     <Project Path="src/SchoolAdmissionSystem.Api/SchoolAdmissionSystem.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SchoolAdmissionSystem.IntegrationTests/SchoolAdmissionSystem.IntegrationTests.csproj" />
     <Project Path="tests/SchoolAdmissionSystem.UnitTests/SchoolAdmissionSystem.UnitTests.csproj" />
   </Folder>
 </Solution>
